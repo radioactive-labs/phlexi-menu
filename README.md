@@ -94,7 +94,7 @@ menu = Phlexi::Menu::Builder.new do |m|
   m.item "Settings", 
     url: "/settings", 
     icon: SettingsIcon,
-    leading_badge: CustomBadgeComponent
+    leading_badge: CustomBadgeComponent.new
 end
 
 # In your view
@@ -166,7 +166,7 @@ class CustomBadgeComponent < ApplicationComponent
 end
 
 # Usage
-m.item "Products", leading_badge: CustomBadgeComponent
+m.item "Products", leading_badge: CustomBadgeComponent.new
 ```
 
 ### Rails Integration
