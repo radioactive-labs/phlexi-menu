@@ -122,7 +122,7 @@ The menu component accepts these initialization options:
 
 ```ruby
 MainMenu.new(
-  menu,                    # The menu instance
+  menu,                   # The menu instance
   max_depth: 3,           # Maximum nesting depth (default: 3)
   **options               # Additional options passed to templates
 )
