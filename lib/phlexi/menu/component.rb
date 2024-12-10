@@ -102,7 +102,7 @@ module Phlexi
       end
 
       def active_class(item)
-        item.active?(helpers) ? themed(:active) : nil
+        item.active?(context) ? themed(:active) : nil
       end
 
       def item_parent_class(item)
@@ -111,6 +111,24 @@ module Phlexi
 
       def themed(component)
         self.class::Theme.instance.resolve_theme(component)
+      end
+
+      def phlexi_render(arg, &)
+        return unless arg
+        raise ArgumentError, "phlexi_render requires a default render block" unless block_given?
+
+        # Handle Phlex components or Rails Renderables
+        # if arg.is_a?(Class) && (arg < Phlex::SGML || arg.respond_to?(:render_in))
+        #   render arg.new
+        # els
+        if arg.class < Phlex::SGML || arg.respond_to?(:render_in)
+          render arg
+        # Handle procs
+        elsif arg.respond_to?(:to_proc)
+          instance_exec(&arg)
+        else
+          yield
+        end
       end
     end
   end

@@ -78,7 +78,7 @@ class MainMenu < Phlexi::Menu::Component
 end
 
 # Using the menu
-menu = Phlexi::Menu.new do |m|
+menu = Phlexi::Menu::Builder.new do |m|
   m.item "Dashboard", 
     url: "/", 
     icon: DashboardIcon
@@ -157,7 +157,7 @@ Badges can be either strings or Phlex components:
 
 ```ruby
 class CustomBadgeComponent < ApplicationComponent
-  def template
+  def view_template
     div(class: "flex items-center") do
       span(class: "h-2 w-2 rounded-full bg-blue-400")
       span(class: "ml-2") { "New" }
@@ -176,7 +176,7 @@ In your controller:
 ```ruby
 class ApplicationController < ActionController::Base
   def navigation
-    @navigation ||= Phlexi::Menu.new do |m|
+    @navigation ||= Phlexi::Menu::Builder.new do |m|
       m.item "Home", 
         url: root_path, 
         icon: HomeIcon
@@ -252,7 +252,7 @@ The component provides these customization points:
 Example of building menus based on user permissions:
 
 ```ruby
-Phlexi::Menu.new do |m|
+Phlexi::Menu::Builder.new do |m|
   # Basic items
   m.item "Home", url: root_path
   
@@ -281,7 +281,7 @@ After checking out the repo:
 3. Run `bin/appraise rake test` to run the tests against all supported versions
 4. You can also run `bin/console` for an interactive prompt
 
-For development against a single version, you can just use `rake test`.
+For development against a single version, you can just use `bundle exec rake test`.
 
 ## Contributing
 

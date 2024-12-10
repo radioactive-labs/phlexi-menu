@@ -1,4 +1,4 @@
-require "fiber/local"
+require "phlexi-field"
 
 module Phlexi
   module Menu

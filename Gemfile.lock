@@ -2,8 +2,8 @@ PATH
   remote: .
   specs:
     phlexi-menu (0.0.1)
-      fiber-local
       phlex (~> 1.11)
+      phlexi-field
       zeitwerk
 
 GEM
@@ -113,6 +113,11 @@ GEM
     phlex-testing-capybara (0.1.0)
       capybara (~> 3.38)
       phlex (>= 0.5)
+    phlexi-field (0.0.11)
+      activesupport
+      fiber-local
+      phlex (~> 1.11)
+      zeitwerk
     psych (5.1.2)
       stringio
     public_suffix (6.0.1)

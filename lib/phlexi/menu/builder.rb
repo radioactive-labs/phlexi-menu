@@ -1,10 +1,8 @@
 # frozen_string_literal: true
 
-require "phlex"
-
 module Phlexi
   module Menu
-    module Builder
+    class Builder
       attr_reader :items
 
       class Item < Phlexi::Menu::Item; end

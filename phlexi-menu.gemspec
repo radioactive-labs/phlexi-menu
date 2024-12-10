@@ -35,7 +35,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "phlex", "~> 1.11"
   spec.add_dependency "zeitwerk"
-  spec.add_dependency "fiber-local"
+  spec.add_dependency "phlexi-field"
 
   spec.add_development_dependency "rake"
   spec.add_development_dependency "minitest"
