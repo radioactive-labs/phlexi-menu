@@ -31,7 +31,7 @@ module Phlexi
       # @param menu [Phlexi::Menu::Builder] The menu structure to render
       # @param max_depth [Integer] Maximum nesting depth for menu items
       # @param options [Hash] Additional options passed to rendering methods
-      def initialize(menu, max_depth: DEFAULT_MAX_DEPTH, **options)
+      def initialize(menu, max_depth: default_max_depth, **options)
         @menu = menu
         @max_depth = max_depth
         @options = options
@@ -197,6 +197,8 @@ module Phlexi
           yield
         end
       end
+
+      def default_max_depth = self.class::DEFAULT_MAX_DEPTH
     end
   end
 end
