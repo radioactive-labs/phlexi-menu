@@ -95,7 +95,9 @@ module Phlexi
             leading_badge: "test-leading-badge",
             trailing_badge: "test-trailing-badge",
             icon: "test-icon",
-            active: "test-active"
+            icon_wrapper: "test-icon-wrapper",
+            active: "test-active",
+            hover: "test-hover"
           })
         end
       end
@@ -282,17 +284,102 @@ module Phlexi
       # Test default max depth (3)
       render TestMenu.new(deep_menu)
 
+      # Check rendered items
       assert has_css?(".test-label", text: "Level 1")
       assert has_css?(".test-label", text: "Level 2")
       assert has_css?(".test-label", text: "Level 3")
       refute has_css?(".test-label", text: "Level 4")
 
+      # Check parent classes
+      assert has_css?(".test-item:first-child.test-parent")      # Level 1 should have parent class
+      assert has_css?(".test-item .test-item:first-child.test-parent")  # Level 2 should have parent class
+      refute has_css?(".test-item .test-item .test-item.test-parent")   # Level 3 shouldn't have parent class
+
       # Test custom max depth
       render TestMenu.new(deep_menu, max_depth: 2)
 
+      # Check rendered items
       assert has_css?(".test-label", text: "Level 1")
       assert has_css?(".test-label", text: "Level 2")
       refute has_css?(".test-label", text: "Level 3")
+
+      # Check parent classes with custom depth
+      assert has_css?(".test-item:first-child.test-parent")     # Level 1 should have parent class
+      refute has_css?(".test-item .test-item.test-parent")      # Level 2 shouldn't have parent class
+    end
+
+    def test_depth_limited_nesting
+      menu = Phlexi::Menu::Builder.new do |m|
+        m.item "Root" do |root|
+          root.item "Child" do |child|
+            child.item "Grandchild" do |grand|
+              grand.item "Great-grandchild"
+            end
+          end
+        end
+      end
+
+      # Render with max_depth of 2
+      render TestMenu.new(menu, max_depth: 2)
+
+      # Check items rendered
+      assert has_css?(".test-label", text: "Root")
+      assert has_css?(".test-label", text: "Child")
+      refute has_css?(".test-label", text: "Grandchild")
+      refute has_css?(".test-label", text: "Great-grandchild")
+
+      # Check parent classes based on renderable children
+      assert has_css?(".test-item:first-child.test-parent")     # Root should have parent class
+      refute has_css?(".test-item .test-item.test-parent")      # Child shouldn't have parent class
+    end
+
+    def test_nested_state_with_depth_limit
+      menu = Phlexi::Menu::Builder.new do |m|
+        m.item "A" do |a|          # depth 0
+          a.item "B" do |b|        # depth 1
+            b.item "C"             # depth 2
+          end
+        end
+      end
+
+      # Test parent classes at each max_depth
+      {
+        1 => {
+          root: false,     # A can't be nested because depth 1 is max
+          child: false     # B won't be rendered at all
+        },
+        2 => {
+          root: true,      # A can be nested because B will be rendered
+          child: false     # B can't be nested because depth 2 is max
+        },
+        3 => {
+          root: true,      # A can be nested because B will be rendered
+          child: true      # B can be nested because C will be rendered
+        }
+      }.each do |max_depth, expected|
+        component = TestMenu.new(menu, max_depth: max_depth)
+        render component
+
+        # Check root level (A)
+        if expected[:root]
+          assert has_css?("li.test-item.test-parent", text: "A"),
+            "At max_depth #{max_depth}, root should have parent class"
+        else
+          refute has_css?("li.test-item.test-parent", text: "A"),
+            "At max_depth #{max_depth}, root should not have parent class"
+        end
+
+        # Only check child level (B) if it should be rendered
+        if max_depth > 1
+          if expected[:child]
+            assert has_css?("li.test-item.test-parent li.test-item.test-parent", text: "B"),
+              "At max_depth #{max_depth}, child should have parent class"
+          else
+            refute has_css?("li.test-item.test-parent li.test-item.test-parent", text: "B"),
+              "At max_depth #{max_depth}, child should not have parent class"
+          end
+        end
+      end
     end
 
     def test_component_rendering

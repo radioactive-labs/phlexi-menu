@@ -13,6 +13,7 @@ Phlexi::Menu is a flexible and powerful menu builder for Ruby applications. It p
   - [Basic Usage](#basic-usage)
   - [Menu Items](#menu-items)
   - [Component Options](#component-options)
+  - [Nesting and Depth Limits](#nesting-and-depth-limits)
   - [Theming](#theming)
     - [Static Theming](#static-theming)
     - [Depth-Aware Theming](#depth-aware-theming)
@@ -27,10 +28,11 @@ Phlexi::Menu is a flexible and powerful menu builder for Ruby applications. It p
 
 ## Features
 
-- Hierarchical menu structure with controlled nesting depth
+- Hierarchical menu structure with intelligent depth control
 - Support for icons and dual-badge system (leading and trailing badges)
 - Intelligent active state detection
 - Flexible theming system with depth awareness
+- Smart nesting behavior based on depth limits
 - Works seamlessly with Phlex components
 - Rails-compatible URL handling
 - Customizable rendering components
@@ -73,7 +75,8 @@ class MainMenu < Phlexi::Menu::Component
         leading_badge: "mr-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600",
         trailing_badge: "ml-auto px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600",
         icon: "h-5 w-5",
-        active: "bg-blue-50 text-blue-600"
+        active: "bg-blue-50 text-blue-600",
+        item_parent: "has-children"
       })
     end
   end
@@ -92,7 +95,7 @@ menu = Phlexi::Menu::Builder.new do |m|
     users.item "All Users", url: "/users"
     users.item "Add User", url: "/users/new"
   end
-  
+
   m.item "Settings", 
     url: "/settings", 
     icon: SettingsIcon,
@@ -128,6 +131,46 @@ MainMenu.new(
   max_depth: 3,           # Maximum nesting depth (default: 3)
   **options               # Additional options passed to templates
 )
+```
+
+### Nesting and Depth Limits
+
+Phlexi::Menu intelligently handles menu nesting based on the specified maximum depth:
+
+```ruby
+# Create a deeply nested menu structure
+menu = Phlexi::Menu::Builder.new do |m|
+  m.item "Level 0" do |l0|     # Will be nested (depth 0)
+    l0.item "Level 1" do |l1|  # Will be nested if max_depth > 2
+      l1.item "Level 2"        # Will be nested if max_depth > 3
+        l1.item "Level 3"      # Won't be nested if max_depth <= 3
+      end
+    end
+  end
+end
+
+# Render with depth limit
+menu_component = MainMenu.new(menu, max_depth: 2)
+```
+
+Key behaviors:
+- Items are only treated as nested if their children can be rendered within the depth limit
+- Parent styling classes (item_parent theme) are only applied to items whose children will be shown
+- Nesting structure automatically adjusts based on the max_depth setting
+- Depth-aware theme values receive the actual rendered depth of each item
+
+Example with max_depth of 2:
+```ruby
+menu = Phlexi::Menu::Builder.new do |m|
+  m.item "Products" do |products|          # depth 0, gets parent styling
+    products.item "Categories" do |cats|   # depth 1, gets parent styling
+      cats.item "Electronics"              # depth 2, no parent styling
+      cats.item "Books" do |books|         # depth 2, no parent styling
+        books.item "Fiction"               # not rendered (depth 3)
+      end
+    end
+  end
+end
 ```
 
 ### Theming
@@ -199,6 +242,27 @@ Theme values can be either:
 - Static strings for consistent styling
 - Arrays of classes that will be joined
 - Callables (procs/lambdas) that receive the current depth and return strings or arrays
+
+### Advanced Usage
+
+#### Component Customization
+
+You can customize the nesting behavior by overriding the nested? method:
+
+```ruby
+class CustomMenu < Phlexi::Menu::Component
+  protected
+
+  def nested?(item, depth)
+    # Custom logic for when to treat items as nested
+    return false if depth >= @max_depth - 1  # Reserve last level
+    return false if item.items.empty?        # No empty parents
+    
+    # Allow nesting only for items with certain attributes
+    item.options[:allow_nesting]
+  end
+end
+```
 
 
 

@@ -38,9 +38,6 @@ module Phlexi
         super()
       end
 
-      # Renders the menu structure as HTML.
-      #
-      # @return [String] The rendered HTML
       def view_template
         nav(class: themed(:nav)) do
           render_items(@menu.items)
@@ -75,8 +72,22 @@ module Phlexi
           active?(item) ? themed(:active, depth) : nil
         )) do
           render_item_content(item, depth)
-          render_items(item.items, depth + 1) if item.items.any?
+          render_items(item.items, depth + 1) if nested?(item, depth)
         end
+      end
+
+      def nested?(item, depth)
+        has_children = item.items.any?
+        within_depth = (depth + 1) < @max_depth
+        has_children && within_depth
+      end
+
+      def item_parent_class(item, depth)
+        nested?(item, depth) ? themed(:item_parent, depth) : nil
+      end
+
+      def active?(item)
+        item.active?(self)
       end
 
       # Renders the content of a menu item, choosing between link and span.
@@ -187,13 +198,23 @@ module Phlexi
         item.active?(self)
       end
 
+      # Determines if an item should be treated as nested based on its contents
+      # and the current depth relative to the maximum allowed depth.
+      #
+      # @param item [Phlexi::Menu::Item] The item to check
+      # @param depth [Integer] Current nesting depth
+      # @return [Boolean] Whether the item should be treated as nested
+      def nested?(item, depth)
+        item.nested? && (depth + 1) < @max_depth
+      end
+
       # Determines the parent state class for an item.
       #
       # @param item [Phlexi::Menu::Item] The item to check parent state for
       # @param depth [Integer] Current nesting depth
       # @return [String, nil] The parent class name or nil
       def item_parent_class(item, depth)
-        item.items.any? ? themed(:item_parent, depth) : nil
+        nested?(item, depth) ? themed(:item_parent, depth) : nil
       end
 
       # Resolves a theme component to its CSS classes.
