@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    phlexi-menu (0.0.2)
+    phlexi-menu (0.0.3)
       phlex (~> 1.11)
       phlexi-field
       zeitwerk
