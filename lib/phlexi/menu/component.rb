@@ -161,7 +161,7 @@ module Phlexi
       # @param item [Phlexi::Menu::Item] The item to check active state for
       # @return [String, nil] The active class name or nil
       def active_class(item)
-        item.active?(context) ? themed(:active) : nil
+        item.active?(self) ? themed(:active) : nil
       end
 
       # Determines the parent state class for an item.
