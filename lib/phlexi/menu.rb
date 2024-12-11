@@ -22,13 +22,5 @@ module Phlexi
     COMPONENT_BASE = (defined?(::ApplicationComponent) ? ::ApplicationComponent : Phlex::HTML)
 
     class Error < StandardError; end
-
-    def self.object_primary_key(object)
-      if object.class.respond_to?(:primary_key)
-        object.send(object.class.primary_key.to_sym)
-      elsif object.respond_to?(:id)
-        object.id
-      end
-    end
   end
 end
