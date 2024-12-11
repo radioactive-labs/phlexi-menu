@@ -14,6 +14,8 @@ Phlexi::Menu is a flexible and powerful menu builder for Ruby applications. It p
   - [Menu Items](#menu-items)
   - [Component Options](#component-options)
   - [Theming](#theming)
+    - [Static Theming](#static-theming)
+    - [Depth-Aware Theming](#depth-aware-theming)
   - [Badge Components](#badge-components)
   - [Rails Integration](#rails-integration)
 - [Advanced Usage](#advanced-usage)
@@ -28,7 +30,7 @@ Phlexi::Menu is a flexible and powerful menu builder for Ruby applications. It p
 - Hierarchical menu structure with controlled nesting depth
 - Support for icons and dual-badge system (leading and trailing badges)
 - Intelligent active state detection
-- Flexible theming system
+- Flexible theming system with depth awareness
 - Works seamlessly with Phlex components
 - Rails-compatible URL handling
 - Customizable rendering components
@@ -64,10 +66,10 @@ class MainMenu < Phlexi::Menu::Component
       super.merge({
         nav: "bg-white shadow",
         items_container: "space-y-1",
-        item_wrapper: "relative",
+        item_wrapper: ->(depth) { "relative pl-#{depth * 4}" },
         item_link: "flex items-center px-4 py-2 hover:bg-gray-50",
         item_span: "flex items-center px-4 py-2",
-        item_label: "mx-3",
+        item_label: ->(depth) { "mx-3 text-gray-#{600 + (depth * 100)}" },
         leading_badge: "mr-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600",
         trailing_badge: "ml-auto px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600",
         icon: "h-5 w-5",
@@ -130,6 +132,12 @@ MainMenu.new(
 
 ### Theming
 
+Phlexi::Menu provides two approaches to theming: static and depth-aware.
+
+#### Static Theming
+
+Basic theme configuration with fixed classes:
+
 ```ruby
 class CustomMenu < Phlexi::Menu::Component
   class Theme < Theme
@@ -150,6 +158,49 @@ class CustomMenu < Phlexi::Menu::Component
   end
 end
 ```
+
+#### Depth-Aware Theming
+
+Advanced theme configuration with depth-sensitive classes:
+
+```ruby
+class DepthAwareMenu < Phlexi::Menu::Component
+  class Theme < Theme
+    def self.theme
+      super.merge({
+        # Static classes
+        nav: "bg-white shadow",
+        
+        # Progressive indentation
+        item_wrapper: ->(depth) { "relative pl-#{depth * 4}" },
+        
+        # Gradually fading text
+        item_label: ->(depth) { "mx-3 text-gray-#{600 + (depth * 100)}" },
+        
+        # Different icon styles per level
+        icon: ->(depth) {
+          base = "h-5 w-5"
+          color = depth.zero? ? "text-primary" : "text-gray-400"
+          [base, color]
+        },
+        
+        # Smaller text at deeper levels
+        item_link: ->(depth) {
+          size = depth.zero? ? "text-base" : "text-sm"
+          ["flex items-center px-4 py-2 hover:bg-gray-50", size]
+        }
+      })
+    end
+  end
+end
+```
+
+Theme values can be either:
+- Static strings for consistent styling
+- Arrays of classes that will be joined
+- Callables (procs/lambdas) that receive the current depth and return strings or arrays
+
+
 
 ### Badge Components
 

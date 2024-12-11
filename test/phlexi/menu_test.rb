@@ -40,6 +40,47 @@ module Phlexi
       end
     end
 
+    class DepthAwareMenu < Phlexi::Menu::Component
+      class Theme < Theme
+        def self.theme
+          super.merge({
+            nav: "depth-nav",
+            items_container: "depth-items",
+            item_wrapper: ->(depth) { ["depth-item", "depth-#{depth}"] },
+            item_link: ->(depth) { ["depth-link", depth.zero? ? "root" : "nested"] },
+            item_label: ->(depth) { ["depth-label", "level-#{depth}"] },
+            icon: ->(depth) { ["depth-icon", depth.zero? ? "primary" : "secondary"] },
+            leading_badge: ->(depth) { ["depth-leading-badge", "indent-#{depth}"] },
+            trailing_badge: ->(depth) { ["depth-trailing-badge", "offset-#{depth}"] },
+            active: ->(depth) { ["depth-active", "highlight-#{depth}"] }
+          })
+        end
+      end
+    end
+
+    # Define a menu component with various types of callable theme values
+    class CallableThemeMenu < Phlexi::Menu::Component
+      class Theme < Theme
+        def self.theme
+          super.merge({
+            # Lambda returning string
+            item_label: ->(depth) { "depth-#{depth}-label" },
+
+            # Lambda returning array
+            item_wrapper: ->(depth) { ["wrapper", "level-#{depth}"] },
+
+            # Lambda with conditional logic
+            item_link: ->(depth) {
+              depth.zero? ? "root-link" : ["nested-link", "indent-#{depth}"]
+            },
+
+            # Static string (non-callable)
+            nav: "static-nav"
+          })
+        end
+      end
+    end
+
     class TestMenu < Phlexi::Menu::Component
       class Theme < Theme
         def self.theme
@@ -295,6 +336,112 @@ module Phlexi
 
       # Test label count
       assert_equal 5, all(".custom-label", minimum: 0).count
+    end
+
+    def test_depth_aware_theming
+      # Create a deeply nested menu for testing
+      deep_menu = Phlexi::Menu::Builder.new do |m|
+        m.item "Root",
+          url: "/",
+          icon: TestIcon,
+          leading_badge: "New",
+          trailing_badge: "1" do |root|
+          root.item "Level 1", url: "/level1" do |l1|
+            l1.item "Level 2",
+              url: "/level2",
+              icon: TestIcon,
+              leading_badge: "Beta",
+              trailing_badge: "2"
+          end
+        end
+      end
+
+      render DepthAwareMenu.new(deep_menu)
+
+      # Test root level (depth 0) classes
+      root = ".depth-nav > .depth-items > li:first-child"
+      assert has_css?("#{root}.depth-item.depth-0")
+      assert has_css?("#{root} a.depth-link.root")
+      assert has_css?("#{root} span.depth-label.level-0", text: "Root")
+      assert has_css?("#{root} div.depth-icon.primary")
+      assert has_css?("#{root} span.depth-leading-badge.indent-0", text: "New")
+      assert has_css?("#{root} span.depth-trailing-badge.offset-0", text: "1")
+
+      # Test level 1 classes
+      level1 = "#{root} > .depth-items > li:first-child"
+      assert has_css?("#{level1}.depth-item.depth-1")
+      assert has_css?("#{level1} a.depth-link.nested")
+      assert has_css?("#{level1} span.depth-label.level-1", text: "Level 1")
+
+      # Test level 2 classes
+      level2 = "#{level1} > .depth-items > li:first-child"
+      assert has_css?("#{level2}.depth-item.depth-2")
+      assert has_css?("#{level2} a.depth-link.nested")
+      assert has_css?("#{level2} span.depth-label.level-2", text: "Level 2")
+      assert has_css?("#{level2} div.depth-icon.secondary")
+      assert has_css?("#{level2} span.depth-leading-badge.indent-2", text: "Beta")
+      assert has_css?("#{level2} span.depth-trailing-badge.offset-2", text: "2")
+    end
+
+    def test_depth_aware_active_state
+      menu = Phlexi::Menu::Builder.new do |m|
+        m.item "Root", url: "/" do |root|
+          root.item "Child", url: "/child" do |child|
+            child.item "Grandchild", url: "/child/grand"
+          end
+        end
+      end
+
+      # Mock context that considers "/child/grand" as current page
+      mock_context = MockContext.new(
+        request_path: "/child/grand",
+        current_page_path: "/child/grand"
+      )
+
+      # Create a component instance with mock context
+      component = DepthAwareMenu.new(menu)
+
+      # Add helper methods to allow active state checking
+      component.define_singleton_method(:helpers) { mock_context.helpers }
+      component.define_singleton_method(:request) { mock_context.request }
+
+      # Render the component
+      render component
+
+      # Render with depth-aware theme
+      menu_component = DepthAwareMenu.new(menu)
+      menu_component.define_singleton_method(:helpers) { mock_context.helpers }
+      render menu_component
+
+      # Test active classes at each depth
+      assert has_css?(".depth-item.depth-0 .depth-active.highlight-0") # Root
+      assert has_css?(".depth-item.depth-1 .depth-active.highlight-1") # Child
+      assert has_css?(".depth-item.depth-2 .depth-active.highlight-2") # Grandchild
+    end
+
+    def test_callable_theme_values
+      menu = Phlexi::Menu::Builder.new do |m|
+        m.item "Test", url: "/" do |root|
+          root.item "Nested", url: "/nested"
+        end
+      end
+
+      render CallableThemeMenu.new(menu)
+
+      # Test static theme value
+      assert has_css?(".static-nav")
+
+      # Test string-returning lambda
+      assert has_css?(".depth-0-label", text: "Test")
+      assert has_css?(".depth-1-label", text: "Nested")
+
+      # Test array-returning lambda
+      assert has_css?(".wrapper.level-0")
+      assert has_css?(".wrapper.level-1")
+
+      # Test conditional lambda
+      assert has_css?(".root-link")
+      assert has_css?(".nested-link.indent-1")
     end
   end
 end

@@ -14,7 +14,7 @@ module Phlexi
     #       def self.theme
     #         super.merge({
     #           nav: "bg-white shadow",
-    #           item_label: "text-gray-600"
+    #           item_label: ->(depth) { "text-gray-#{600 + (depth * 100)}" }
     #         })
     #       end
     #     end
@@ -57,7 +57,7 @@ module Phlexi
         return if depth >= @max_depth
         return if items.empty?
 
-        ul(class: themed(:items_container)) do
+        ul(class: themed(:items_container, depth)) do
           items.each do |item|
             render_item_wrapper(item, depth)
           end
@@ -70,11 +70,11 @@ module Phlexi
       # @param depth [Integer] Current nesting depth
       def render_item_wrapper(item, depth)
         li(class: tokens(
-          themed(:item_wrapper),
-          active_class(item),
-          item_parent_class(item)
+          themed(:item_wrapper, depth),
+          item_parent_class(item, depth),
+          active?(item) ? themed(:active, depth) : nil
         )) do
-          render_item_content(item)
+          render_item_content(item, depth)
           render_items(item.items, depth + 1) if item.items.any?
         end
       end
@@ -82,102 +82,130 @@ module Phlexi
       # Renders the content of a menu item, choosing between link and span.
       #
       # @param item [Phlexi::Menu::Item] The item to render content for
-      def render_item_content(item)
+      # @param depth [Integer] Current nesting depth
+      def render_item_content(item, depth)
         if item.url
-          render_item_link(item)
+          render_item_link(item, depth)
         else
-          render_item_span(item)
+          render_item_span(item, depth)
         end
       end
 
       # Renders a menu item as a link.
       #
       # @param item [Phlexi::Menu::Item] The item to render as a link
-      def render_item_link(item)
-        a(href: item.url, class: themed(:item_link)) do
-          render_item_interior(item)
+      # @param depth [Integer] Current nesting depth
+      def render_item_link(item, depth)
+        a(
+          href: item.url,
+          class: tokens(
+            themed(:item_link, depth),
+            active?(item) ? themed(:active, depth) : nil
+          )
+        ) do
+          render_item_interior(item, depth)
         end
       end
 
       # Renders a menu item as a span (for non-linking items).
       #
       # @param item [Phlexi::Menu::Item] The item to render as a span
-      def render_item_span(item)
-        span(class: themed(:item_span)) do
-          render_item_interior(item)
+      # @param depth [Integer] Current nesting depth
+      def render_item_span(item, depth)
+        span(class: themed(:item_span, depth)) do
+          render_item_interior(item, depth)
         end
       end
 
       # Renders the interior content of a menu item (badges, icon, label).
       #
       # @param item [Phlexi::Menu::Item] The item to render interior content for
-      def render_item_interior(item)
-        render_leading_badge(item.leading_badge) if item.leading_badge
-        render_icon(item.icon) if item.icon
-        render_label(item.label)
-        render_trailing_badge(item.trailing_badge) if item.trailing_badge
+      # @param depth [Integer] Current nesting depth
+      def render_item_interior(item, depth)
+        render_leading_badge(item.leading_badge, depth) if item.leading_badge
+        render_icon(item.icon, depth) if item.icon
+        render_label(item.label, depth)
+        render_trailing_badge(item.trailing_badge, depth) if item.trailing_badge
       end
 
       # Renders the item's label.
       #
       # @param label [String, Component] The label to render
-      def render_label(label)
+      # @param depth [Integer] Current nesting depth
+      def render_label(label, depth)
         phlexi_render(label) {
-          span(class: themed(:item_label)) { label }
+          span(class: themed(:item_label, depth)) { label }
         }
       end
 
       # Renders the item's leading badge.
       #
       # @param badge [String, Component] The leading badge to render
-      def render_leading_badge(badge)
+      # @param depth [Integer] Current nesting depth
+      def render_leading_badge(badge, depth)
         phlexi_render(badge) {
-          span(class: themed(:leading_badge)) { badge }
+          span(class: themed(:leading_badge, depth)) { badge }
         }
       end
 
       # Renders the item's trailing badge.
       #
       # @param badge [String, Component] The trailing badge to render
-      def render_trailing_badge(badge)
+      # @param depth [Integer] Current nesting depth
+      def render_trailing_badge(badge, depth)
         phlexi_render(badge) {
-          span(class: themed(:trailing_badge)) { badge }
+          span(class: themed(:trailing_badge, depth)) { badge }
         }
       end
 
       # Renders the item's icon.
       #
       # @param icon [Class] The icon component class to render
-      def render_icon(icon)
+      # @param depth [Integer] Current nesting depth
+      def render_icon(icon, depth)
         return unless icon
 
-        div(class: themed(:icon_wrapper)) do
-          render icon.new(class: themed(:icon))
+        div(class: themed(:icon_wrapper, depth)) do
+          render icon.new(class: themed(:icon, depth))
         end
       end
 
       # Determines the active state class for an item.
       #
       # @param item [Phlexi::Menu::Item] The item to check active state for
+      # @param depth [Integer] Current nesting depth
       # @return [String, nil] The active class name or nil
-      def active_class(item)
-        item.active?(self) ? themed(:active) : nil
+      def active_class(item, depth)
+        active?(item) ? themed(:active, depth) : nil
+      end
+
+      # Helper method to check if an item is active
+      #
+      # @param item [Phlexi::Menu::Item] The item to check
+      # @return [Boolean] Whether the item is active
+      def active?(item)
+        item.active?(self)
       end
 
       # Determines the parent state class for an item.
       #
       # @param item [Phlexi::Menu::Item] The item to check parent state for
+      # @param depth [Integer] Current nesting depth
       # @return [String, nil] The parent class name or nil
-      def item_parent_class(item)
-        item.items.any? ? themed(:item_parent) : nil
+      def item_parent_class(item, depth)
+        item.items.any? ? themed(:item_parent, depth) : nil
       end
 
       # Resolves a theme component to its CSS classes.
       #
       # @param component [Symbol] The theme component to resolve
+      # @param depth [Integer] Current nesting depth
       # @return [String, nil] The resolved CSS classes or nil
-      def themed(component)
-        self.class::Theme.instance.resolve_theme(component)
+      def themed(component, depth = 0)
+        theme = self.class::Theme.instance.resolve_theme(component)
+        return nil if theme.nil?
+        return theme unless theme.respond_to?(:call)
+        theme.call(depth)
       end
 
       # Renders either a component or simple value with fallback.
