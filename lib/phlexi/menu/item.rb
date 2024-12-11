@@ -101,18 +101,32 @@ module Phlexi
         @items.any? { |item| item.active?(context) }
       end
 
+      # Checks if the menu has any items.
+      #
+      # @return [Boolean] true if the menu has no items, false otherwise
+      def empty?
+        @items.empty?
+      end
+
+      # Returns the number of top-level items in the menu.
+      #
+      # @return [Integer] The count of top-level menu items
+      def size
+        @items.size
+      end
+
       # Checks if this menu item has any nested items.
       #
       # @return [Boolean] true if the item has nested items, false otherwise
       def nested?
-        !@items.empty?
+        !empty?
       end
 
       # Returns a string representation of the menu item.
       #
       # @return [String] A human-readable representation of the menu item
       def inspect
-        "#<#{self.class} label=#{@label} url=#{@url} items=#{@items.map(&:label)}>"
+        "#<#{self.class} label=#{@label} url=#{@url} items=#{@items.map(&:inspect)}>"
       end
     end
   end

@@ -61,11 +61,18 @@ module Phlexi
         @items.size
       end
 
+      # Checks if this menu item has any nested items.
+      #
+      # @return [Boolean] true if the item has nested items, false otherwise
+      def nested?
+        !empty?
+      end
+
       # Returns a string representation of the menu structure.
       #
       # @return [String] A human-readable representation of the menu
       def inspect
-        "#<#{self.class} items=#{@items.map(&:label)}>"
+        "#<#{self.class} items=#{@items.map(&:inspect)}>"
       end
     end
   end
