@@ -97,7 +97,7 @@ module Phlexi
           href: item.url,
           class: tokens(
             themed(:item_link, depth),
-            active?(item) ? themed(:active, depth) : nil
+            active_class(item, depth)
           )
         ) do
           render_item_interior(item, depth)
