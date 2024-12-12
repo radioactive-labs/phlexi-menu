@@ -76,20 +76,6 @@ module Phlexi
         end
       end
 
-      def nested?(item, depth)
-        has_children = item.items.any?
-        within_depth = (depth + 1) < @max_depth
-        has_children && within_depth
-      end
-
-      def item_parent_class(item, depth)
-        nested?(item, depth) ? themed(:item_parent, depth) : nil
-      end
-
-      def active?(item)
-        item.active?(self)
-      end
-
       # Renders the content of a menu item, choosing between link and span.
       #
       # @param item [Phlexi::Menu::Item] The item to render content for
@@ -205,7 +191,9 @@ module Phlexi
       # @param depth [Integer] Current nesting depth
       # @return [Boolean] Whether the item should be treated as nested
       def nested?(item, depth)
-        item.nested? && (depth + 1) < @max_depth
+        has_children = item.items.any?
+        within_depth = (depth + 1) < @max_depth
+        has_children && within_depth
       end
 
       # Determines the parent state class for an item.
