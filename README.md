@@ -12,15 +12,20 @@ Phlexi::Menu is a flexible and powerful menu builder for Ruby applications. It p
 - [Usage](#usage)
   - [Basic Usage](#basic-usage)
   - [Menu Items](#menu-items)
+  - [Badge System](#badge-system)
   - [Component Options](#component-options)
   - [Nesting and Depth Limits](#nesting-and-depth-limits)
   - [Theming](#theming)
     - [Static Theming](#static-theming)
     - [Depth-Aware Theming](#depth-aware-theming)
-  - [Badge Components](#badge-components)
   - [Rails Integration](#rails-integration)
 - [Advanced Usage](#advanced-usage)
+  - [Active State Detection](#active-state-detection)
   - [Component Customization](#component-customization)
+    - [Core Rendering Methods](#core-rendering-methods)
+    - [Badge Related Methods](#badge-related-methods)
+    - [Other Components](#other-components)
+    - [Helper Methods](#helper-methods)
   - [Dynamic Menus](#dynamic-menus)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -29,7 +34,7 @@ Phlexi::Menu is a flexible and powerful menu builder for Ruby applications. It p
 ## Features
 
 - Hierarchical menu structure with intelligent depth control
-- Support for icons and dual-badge system (leading and trailing badges)
+- Enhanced badge system with customizable options and wrappers
 - Intelligent active state detection
 - Flexible theming system with depth awareness
 - Smart nesting behavior based on depth limits
@@ -70,13 +75,15 @@ class MainMenu < Phlexi::Menu::Component
         items_container: "space-y-1",
         item_wrapper: ->(depth) { "relative pl-#{depth * 4}" },
         item_link: "flex items-center px-4 py-2 hover:bg-gray-50",
-        item_span: "flex items-center px-4 py-2",
         item_label: ->(depth) { "mx-3 text-gray-#{600 + (depth * 100)}" },
+        # Badge wrapper styles
+        leading_badge_wrapper: "flex items-center",
+        trailing_badge_wrapper: "flex items-center ml-auto",
+        # Badge styles
         leading_badge: "mr-2 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600",
-        trailing_badge: "ml-auto px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600",
+        trailing_badge: "px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-600",
         icon: "h-5 w-5",
-        active: "bg-blue-50 text-blue-600",
-        item_parent: "has-children"
+        active: "bg-blue-50 text-blue-600"
       })
     end
   end
@@ -84,14 +91,12 @@ end
 
 # Using the menu
 menu = Phlexi::Menu::Builder.new do |m|
-  m.item "Dashboard", 
-    url: "/", 
-    icon: DashboardIcon
+  m.item "Dashboard", url: "/", icon: DashboardIcon
   
-  m.item "Users", 
-    url: "/users", 
-    leading_badge: "Beta",
-    trailing_badge: "23" do |users|
+  # Using the new fluent badge API
+  m.item "Users", url: "/users"
+    .with_leading_badge("Beta", color: "blue")
+    .with_trailing_badge("23", size: "sm") do |users|
     users.item "All Users", url: "/users"
     users.item "Add User", url: "/users/new"
   end
@@ -99,7 +104,7 @@ menu = Phlexi::Menu::Builder.new do |m|
   m.item "Settings", 
     url: "/settings", 
     icon: SettingsIcon,
-    leading_badge: CustomBadgeComponent.new
+    leading_badge: StatusBadge.new(type: "warning")
 end
 
 # In your view
@@ -121,6 +126,35 @@ m.item "Menu Item",
   }
 ```
 
+The new fluent badge API provides a cleaner way to add badges:
+
+```ruby
+m.item "Products"
+  .with_leading_badge("New", class: "text-blue-900")
+  .with_trailing_badge("99+", class: "text-sm")
+```
+
+### Badge System
+
+The enhanced badge system supports both simple text badges and complex component badges with customization options:
+
+```ruby
+# Simple text badges with options
+m.item "Products"
+  .with_leading_badge("New", class: "text-green-400")
+
+# Component badges
+m.item "Messages"
+  .with_leading_badge(StatusBadge.new(status: "active"))
+  .with_trailing_badge(CounterBadge.new(count: 3))
+
+# Legacy style still supported
+m.item "Legacy",
+  leading_badge: "Beta",
+  trailing_badge: "2",
+  leading_badge_options: { class: "text-green-400"},
+```
+
 ### Component Options
 
 The menu component accepts these initialization options:
@@ -140,10 +174,10 @@ Phlexi::Menu intelligently handles menu nesting based on the specified maximum d
 ```ruby
 # Create a deeply nested menu structure
 menu = Phlexi::Menu::Builder.new do |m|
-  m.item "Level 0" do |l0|     # Will be nested (depth 0)
-    l0.item "Level 1" do |l1|  # Will be nested if max_depth > 2
-      l1.item "Level 2"        # Will be nested if max_depth > 3
-        l1.item "Level 3"      # Won't be nested if max_depth <= 3
+  m.item "Level 0" do |l0|        # Will be nested (depth 0)
+    l0.item "Level 1" do |l1|     # Will be nested if max_depth > 2
+      l1.item "Level 2" do |l2|   # Will be nested if max_depth > 3
+        l2.item "Level 3"
       end
     end
   end
@@ -153,29 +187,27 @@ end
 menu_component = MainMenu.new(menu, max_depth: 2)
 ```
 
-Key behaviors:
-- Items are only treated as nested if their children can be rendered within the depth limit
-- Parent styling classes (item_parent theme) are only applied to items whose children will be shown
-- Nesting structure automatically adjusts based on the max_depth setting
-- Depth-aware theme values receive the actual rendered depth of each item
-
-Example with max_depth of 2:
-```ruby
-menu = Phlexi::Menu::Builder.new do |m|
-  m.item "Products" do |products|          # depth 0, gets parent styling
-    products.item "Categories" do |cats|   # depth 1, gets parent styling
-      cats.item "Electronics"              # depth 2, no parent styling
-      cats.item "Books" do |books|         # depth 2, no parent styling
-        books.item "Fiction"               # not rendered (depth 3)
-      end
-    end
-  end
-end
-```
-
 ### Theming
 
-Phlexi::Menu provides two approaches to theming: static and depth-aware.
+The theming system now includes dedicated wrapper elements for badges:
+
+```ruby
+def self.theme
+  super.merge({
+    # Badge containers
+    leading_badge_wrapper: "flex items-center",
+    trailing_badge_wrapper: "ml-auto",
+    
+    # Badge elements
+    leading_badge: ->(depth) {
+      ["badge", depth.zero? ? "primary" : "secondary"]
+    },
+    trailing_badge: ->(depth) {
+      ["badge", "ml-2", "level-#{depth}"]
+    }
+  })
+end
+```
 
 #### Static Theming
 
@@ -211,26 +243,10 @@ class DepthAwareMenu < Phlexi::Menu::Component
   class Theme < Theme
     def self.theme
       super.merge({
-        # Static classes
-        nav: "bg-white shadow",
-        
-        # Progressive indentation
         item_wrapper: ->(depth) { "relative pl-#{depth * 4}" },
-        
-        # Gradually fading text
         item_label: ->(depth) { "mx-3 text-gray-#{600 + (depth * 100)}" },
-        
-        # Different icon styles per level
-        icon: ->(depth) {
-          base = "h-5 w-5"
-          color = depth.zero? ? "text-primary" : "text-gray-400"
-          [base, color]
-        },
-        
-        # Smaller text at deeper levels
-        item_link: ->(depth) {
-          size = depth.zero? ? "text-base" : "text-sm"
-          ["flex items-center px-4 py-2 hover:bg-gray-50", size]
+        leading_badge: ->(depth) { 
+          ["badge", "mr-2", depth.zero? ? "primary" : "secondary"] 
         }
       })
     end
@@ -242,47 +258,6 @@ Theme values can be either:
 - Static strings for consistent styling
 - Arrays of classes that will be joined
 - Callables (procs/lambdas) that receive the current depth and return strings or arrays
-
-### Advanced Usage
-
-#### Component Customization
-
-You can customize the nesting behavior by overriding the nested? method:
-
-```ruby
-class CustomMenu < Phlexi::Menu::Component
-  protected
-
-  def nested?(item, depth)
-    # Custom logic for when to treat items as nested
-    return false if depth >= @max_depth - 1  # Reserve last level
-    return false if item.items.empty?        # No empty parents
-    
-    # Allow nesting only for items with certain attributes
-    item.options[:allow_nesting]
-  end
-end
-```
-
-
-
-### Badge Components
-
-Badges can be either strings or Phlex components:
-
-```ruby
-class CustomBadgeComponent < ApplicationComponent
-  def view_template
-    div(class: "flex items-center") do
-      span(class: "h-2 w-2 rounded-full bg-blue-400")
-      span(class: "ml-2") { "New" }
-    end
-  end
-end
-
-# Usage
-m.item "Products", leading_badge: CustomBadgeComponent.new
-```
 
 ### Rails Integration
 
@@ -308,8 +283,8 @@ class ApplicationController < ActionController::Base
 
       if current_user&.admin?
         m.item "Admin", 
-          url: admin_path, 
-          leading_badge: "Admin"
+          url: admin_path
+          .with_leading_badge("Admin", variant: "warning")
       end
     end
   end
@@ -317,50 +292,97 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-Note: The menu component uses Rails' `current_page?` helper for default active state detection. If you're not using Rails or want custom active state logic, provide an `active` callable to your menu items:
+## Advanced Usage
+
+### Active State Detection
+
+The menu system provides multiple ways to determine the active state of items:
 
 ```ruby
-m.item "Custom Active", url: "/path", active: ->(context) {
-  # Your custom active state logic here
-  context.request.path.start_with?("/path")
-}
+m.item "Custom Active", 
+  url: "/path", 
+  active: ->(context) {
+    # Custom active state logic
+    context.request.path.start_with?("/path")
+  }
 ```
 
-## Advanced Usage
+Default behavior checks:
+1. Custom active logic (if provided)
+2. Current page match
+3. Active state of child items
 
 ### Component Customization
 
-You can customize specific rendering steps:
+You can customize specific rendering steps by subclassing the base component and overriding specific methods.
+
+The component provides these customization points:
+
+#### Core Rendering Methods
+- `render_items(items, depth)`: Handles collection of items and nesting
+- `render_item_wrapper(item, depth)`: Wraps individual items in list elements
+- `render_item_content(item, depth)`: Chooses between link and span rendering
+- `render_item_interior(item, depth)`: Handles the item's internal layout
+
+#### Badge Related Methods
+- `render_leading_badge(item, depth)`: Renders the item's leading badge with wrapper
+- `render_trailing_badge(item, depth)`: Renders the item's trailing badge with wrapper
+- `render_badge(badge, options, type, depth)`: Core badge rendering with options support
+
+#### Other Components
+- `render_icon(icon, depth)`: Renders the icon component
+- `render_label(label, depth)`: Renders the item's label
+
+#### Helper Methods
+- `nested?(item, depth)`: Determines if an item should show nested children
+- `active?(item)`: Determines item's active state
+- `active_class(item, depth)`: Resolves active state styling
+- `themed(component, depth)`: Resolves theme values for components
+- `compute_item_wrapper_classes(item, depth)`: Computes wrapper CSS classes
+
+Each method receives the current depth as a parameter for depth-aware rendering and theming. You can override any combination of these methods to customize the rendering behavior:
 
 ```ruby
 class CustomMenu < Phlexi::Menu::Component
-  # Override just what you need
-  def render_item_interior(item)
-    div(class: "flex items-center gap-2") do
-      render_leading_badge(item.leading_badge) if item.leading_badge
-      render_icon(item.icon) if item.icon
-      span(class: themed(:item_label)) { item.label.upcase }
-      render_trailing_badge(item.trailing_badge) if item.trailing_badge
+  # Customize just the badge rendering
+  def render_badge(badge, options, type, depth)
+    if badge.is_a?(String) && type == :leading_badge
+      render_text_badge(badge, options, depth)
+    else
+      super
     end
   end
 
-  def render_leading_badge(badge)
-    div(class: tokens(themed(:leading_badge), "flex items-center")) do
-      span { "●" }
-      span(class: "ml-1") { badge }
+  private
+
+  def render_text_badge(text, options, depth)
+    span(class: themed(:leading_badge, depth)) do
+      span(class: "dot") { "•" }
+      text
     end
   end
 end
 ```
 
-The component provides these customization points:
-- `render_items`: Handles collection of items and nesting
-- `render_item_wrapper`: Wraps individual items
-- `render_item_content`: Chooses between link and span rendering
-- `render_item_interior`: Handles the item's internal layout
-- `render_leading_badge`: Renders the leading badge
-- `render_trailing_badge`: Renders the trailing badge
-- `render_icon`: Renders the icon component
+For Rails applications, you can also integrate with helpers and routes:
+
+```ruby
+class ApplicationMenu < Phlexi::Menu::Component
+  protected
+
+  def active?(item)
+    return super unless helpers&.respond_to?(:current_page?)
+    current_page?(item.url) || item.items.any? { |child| active?(child) }
+  end
+
+  def render_icon(icon, depth)
+    return super unless icon.respond_to?(:to_svg)
+    raw icon.to_svg(class: themed(:icon, depth))
+  end
+end
+```
+
+The component's modular design allows you to customize exactly what you need while maintaining the core menu functionality.
 
 ### Dynamic Menus
 
@@ -382,7 +404,10 @@ Phlexi::Menu::Builder.new do |m|
   
   # Dynamic items from database
   current_user.organizations.each do |org|
-    m.item org.name, url: organization_path(org), icon: OrgIcon
+    m.item org.name, 
+      url: organization_path(org), 
+      icon: OrgIcon,
+      trailing_badge: org.unread_notifications_count
   end
 end
 ```

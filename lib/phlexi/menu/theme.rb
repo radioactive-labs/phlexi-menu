@@ -25,6 +25,8 @@ module Phlexi
           hover: nil,                  # Hover state
 
           # Badge elements
+          leading_badge_wrapper: nil,  # Wrapper for leading badge
+          trailing_badge_wrapper: nil, # Wrapper for trailing badge
           leading_badge: nil,          # Badge before label
           trailing_badge: nil,         # Badge after label
 

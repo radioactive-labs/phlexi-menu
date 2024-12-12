@@ -1,0 +1,393 @@
+diff --git a/lib/phlexi/menu/component.rb b/lib/phlexi/menu/component.rb
+index 7f35b74..b9ecc5e 100644
+--- a/lib/phlexi/menu/component.rb
++++ b/lib/phlexi/menu/component.rb
+@@ -31,7 +31,10 @@ module Phlexi
+       # @param menu [Phlexi::Menu::Builder] The menu structure to render
+       # @param max_depth [Integer] Maximum nesting depth for menu items
+       # @param options [Hash] Additional options passed to rendering methods
++      # @raise [ArgumentError] If menu is nil
+       def initialize(menu, max_depth: default_max_depth, **options)
++        raise ArgumentError, "Menu cannot be nil" if menu.nil?
++
+         @menu = menu
+         @max_depth = max_depth
+         @options = options
+@@ -39,9 +42,7 @@ module Phlexi
+       end
+ 
+       def view_template
+-        nav(class: themed(:nav)) do
+-          render_items(@menu.items)
+-        end
++        nav(class: themed(:nav)) { render_items(@menu.items) }
+       end
+ 
+       protected
+@@ -50,14 +51,12 @@ module Phlexi
+       #
+       # @param items [Array<Phlexi::Menu::Item>] The items to render
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_items(items, depth = 0)
+-        return if depth >= @max_depth
+-        return if items.empty?
++        return if depth >= @max_depth || items.empty?
+ 
+         ul(class: themed(:items_container, depth)) do
+-          items.each do |item|
+-            render_item_wrapper(item, depth)
+-          end
++          items.each { |item| render_item_wrapper(item, depth) }
+         end
+       end
+ 
+@@ -65,21 +64,41 @@ module Phlexi
+       #
+       # @param item [Phlexi::Menu::Item] The item to wrap
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_item_wrapper(item, depth)
+-        li(class: tokens(
++        li(class: compute_item_wrapper_classes(item, depth)) do
++          render_item_content(item, depth)
++          render_nested_items(item, depth)
++        end
++      end
++
++      # Computes CSS classes for item wrapper
++      #
++      # @param item [Phlexi::Menu::Item] The menu item
++      # @param depth [Integer] Current nesting depth
++      # @return [String] Space-separated CSS classes
++      def compute_item_wrapper_classes(item, depth)
++        tokens(
+           themed(:item_wrapper, depth),
+           item_parent_class(item, depth),
+           active?(item) ? themed(:active, depth) : nil
+-        )) do
+-          render_item_content(item, depth)
+-          render_items(item.items, depth + 1) if nested?(item, depth)
+-        end
++        )
++      end
++
++      # Renders nested items if present and within depth limit
++      #
++      # @param item [Phlexi::Menu::Item] The parent menu item
++      # @param depth [Integer] Current nesting depth
++      # @return [void]
++      def render_nested_items(item, depth)
++        render_items(item.items, depth + 1) if nested?(item, depth)
+       end
+ 
+       # Renders the content of a menu item, choosing between link and span.
+       #
+       # @param item [Phlexi::Menu::Item] The item to render content for
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_item_content(item, depth)
+         if item.url
+           render_item_link(item, depth)
+@@ -92,13 +111,11 @@ module Phlexi
+       #
+       # @param item [Phlexi::Menu::Item] The item to render as a link
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_item_link(item, depth)
+         a(
+           href: item.url,
+-          class: tokens(
+-            themed(:item_link, depth),
+-            active_class(item, depth)
+-          )
++          class: tokens(themed(:item_link, depth), active_class(item, depth))
+         ) do
+           render_item_interior(item, depth)
+         end
+@@ -108,6 +125,7 @@ module Phlexi
+       #
+       # @param item [Phlexi::Menu::Item] The item to render as a span
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_item_span(item, depth)
+         span(class: themed(:item_span, depth)) do
+           render_item_interior(item, depth)
+@@ -118,47 +136,69 @@ module Phlexi
+       #
+       # @param item [Phlexi::Menu::Item] The item to render interior content for
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_item_interior(item, depth)
+-        render_leading_badge(item.leading_badge, depth) if item.leading_badge
++        render_leading_badge(item, depth) if item.leading_badge
+         render_icon(item.icon, depth) if item.icon
+         render_label(item.label, depth)
+-        render_trailing_badge(item.trailing_badge, depth) if item.trailing_badge
++        render_trailing_badge(item, depth) if item.trailing_badge
+       end
+ 
+       # Renders the item's label.
+       #
+       # @param label [String, Component] The label to render
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_label(label, depth)
+-        phlexi_render(label) {
++        phlexi_render(label) do
+           span(class: themed(:item_label, depth)) { label }
+-        }
++        end
++      end
++
++      # Renders the leading badge if present
++      #
++      # @param item [Phlexi::Menu::Item] The menu item
++      # @param depth [Integer] Current nesting depth
++      # @return [void]
++      def render_leading_badge(item, depth)
++        return unless item.leading_badge
++
++        div(class: themed(:leading_badge_wrapper, depth)) do
++          render_badge(item.leading_badge, item.leading_badge_options, :leading_badge, depth)
++        end
+       end
+ 
+-      # Renders the item's leading badge.
++      # Renders the trailing badge if present
+       #
+-      # @param badge [String, Component] The leading badge to render
++      # @param item [Phlexi::Menu::Item] The menu item
+       # @param depth [Integer] Current nesting depth
+-      def render_leading_badge(badge, depth)
+-        phlexi_render(badge) {
+-          span(class: themed(:leading_badge, depth)) { badge }
+-        }
++      # @return [void]
++      def render_trailing_badge(item, depth)
++        return unless item.trailing_badge
++
++        div(class: themed(:trailing_badge_wrapper, depth)) do
++          render_badge(item.trailing_badge, item.trailing_badge_options, :trailing_badge, depth)
++        end
+       end
+ 
+-      # Renders the item's trailing badge.
++      # Renders a badge with given options
+       #
+-      # @param badge [String, Component] The trailing badge to render
++      # @param badge [Object] The badge content
++      # @param options [Hash] Badge rendering options
++      # @param type [Symbol] Badge type (leading or trailing)
+       # @param depth [Integer] Current nesting depth
+-      def render_trailing_badge(badge, depth)
+-        phlexi_render(badge) {
+-          span(class: themed(:trailing_badge, depth)) { badge }
+-        }
++      # @return [void]
++      def render_badge(badge, options, type, depth)
++        phlexi_render(badge) do
++          render BadgeComponent.new(badge, **options)
++        end
+       end
+ 
+       # Renders the item's icon.
+       #
+       # @param icon [Class] The icon component class to render
+       # @param depth [Integer] Current nesting depth
++      # @return [void]
+       def render_icon(icon, depth)
+         return unless icon
+ 
+@@ -222,6 +262,7 @@ module Phlexi
+       # @param arg [Object] The value to render
+       # @yield The default rendering block
+       # @raise [ArgumentError] If no block is provided
++      # @return [void]
+       def phlexi_render(arg, &)
+         return unless arg
+         raise ArgumentError, "phlexi_render requires a default render block" unless block_given?
+@@ -235,6 +276,7 @@ module Phlexi
+         end
+       end
+ 
++      # @return [Integer] The default maximum depth for the menu
+       def default_max_depth = self.class::DEFAULT_MAX_DEPTH
+     end
+   end
+diff --git a/lib/phlexi/menu/item.rb b/lib/phlexi/menu/item.rb
+index 4d128d6..b8b5614 100644
+--- a/lib/phlexi/menu/item.rb
++++ b/lib/phlexi/menu/item.rb
+@@ -20,6 +20,11 @@ module Phlexi
+     #     admin.item "Users", url: "/admin/users"
+     #     admin.item "Settings", url: "/admin/settings"
+     #   end
++    #
++    # @example Custom active state logic
++    #   Item.new("Dashboard", url: "/dashboard", active: -> (context) {
++    #     context.controller.controller_name == "dashboards"
++    #   })
+     class Item
+       # @return [String] The display text for the menu item
+       attr_reader :label
+@@ -33,9 +38,15 @@ module Phlexi
+       # @return [String, Component, nil] The badge displayed before the label
+       attr_reader :leading_badge
+ 
++      # @return [Hash] Options for the leading badge
++      attr_reader :leading_badge_options
++
+       # @return [String, Component, nil] The badge displayed after the label
+       attr_reader :trailing_badge
+ 
++      # @return [Hash] Options for the trailing badge
++      attr_reader :trailing_badge_options
++
+       # @return [Array<Item>] Collection of nested menu items
+       attr_reader :items
+ 
+@@ -55,14 +66,12 @@ module Phlexi
+       # @raise [ArgumentError] If the label is nil or empty
+       def initialize(label, url: nil, icon: nil, leading_badge: nil, trailing_badge: nil, **options, &)
+         raise ArgumentError, "Label cannot be nil" unless label
+-
+         @label = label
+         @url = url
+         @icon = icon
+-        @leading_badge = leading_badge
+-        @trailing_badge = trailing_badge
+-        @options = options
+         @items = []
++        @options = options
++        setup_badges(leading_badge, trailing_badge, options)
+ 
+         yield self if block_given?
+       end
+@@ -70,16 +79,44 @@ module Phlexi
+       # Creates and adds a nested menu item.
+       #
+       # @param label [String] The display text for the nested item
+-      # @param ** [Hash] Additional options passed to the Item constructor
++      # @param args [Hash] Additional options passed to the Item constructor
+       # @yield [item] Optional block for adding further nested items
+       # @yieldparam item [Item] The newly created nested item
+       # @return [Item] The created nested item
+-      def item(label, **, &)
+-        new_item = self.class.new(label, **, &)
++      def item(label, **args, &)
++        new_item = self.class.new(label, **args, &)
+         @items << new_item
+         new_item
+       end
+ 
++      # Add a leading badge to the menu item
++      #
++      # @param badge [String, Component] The badge content
++      # @param opts [Hash] Additional options for the badge
++      # @return [self] Returns self for method chaining
++      # @raise [ArgumentError] If badge is nil
++      def with_leading_badge(badge, **opts)
++        raise ArgumentError, "Badge cannot be nil" if badge.nil?
++
++        @leading_badge = badge
++        @leading_badge_options = opts
++        self
++      end
++
++      # Add a trailing badge to the menu item
++      #
++      # @param badge [String, Component] The badge content
++      # @param opts [Hash] Additional options for the badge
++      # @return [self] Returns self for method chaining
++      # @raise [ArgumentError] If badge is nil
++      def with_trailing_badge(badge, **opts)
++        raise ArgumentError, "Badge cannot be nil" if badge.nil?
++
++        @trailing_badge = badge
++        @trailing_badge_options = opts
++        self
++      end
++
+       # Determines if this menu item should be shown as active.
+       # Checks in the following order:
+       # 1. Custom active logic if provided in options
+@@ -89,23 +126,54 @@ module Phlexi
+       # @param context [Object] The context object (typically a controller) for active state checking
+       # @return [Boolean] true if the item should be shown as active, false otherwise
+       def active?(context)
+-        # First check custom active logic if provided
+-        return @options[:active].call(context) if @options[:active].respond_to?(:call)
+-
+-        # Then check if this item's URL matches current page
+-        if context.respond_to?(:helpers) && @url
+-          return true if context.helpers.current_page?(@url)
+-        end
+-
+-        # Finally check if any child items are active
+-        @items.any? { |item| item.active?(context) }
++        check_custom_active_state(context) ||
++          check_current_page_match(context) ||
++          check_nested_items_active(context)
+       end
+ 
+       # Returns a string representation of the menu item.
+       #
+       # @return [String] A human-readable representation of the menu item
+       def inspect
+-        "#<#{self.class} label=#{@label} url=#{@url} items=#{@items.map(&:inspect)}>"
++        "#<#{self.class} label=#{@label.inspect} url=#{@url.inspect} items=#{@items.inspect}>"
++      end
++
++      private
++
++      # Sets up the badge attributes
++      #
++      # @param leading_badge [String, Component, nil] The leading badge
++      # @param trailing_badge [String, Component, nil] The trailing badge
++      # @param options [Hash] Options containing badge configurations
++      def setup_badges(leading_badge, trailing_badge, options)
++        @leading_badge = leading_badge
++        @leading_badge_options = options.delete(:leading_badge_options) || {}
++        @trailing_badge = trailing_badge
++        @trailing_badge_options = options.delete(:trailing_badge_options) || {}
++      end
++
++      # Checks if there's custom active state logic
++      #
++      # @param context [Object] The context for active state checking
++      # @return [Boolean] Result of custom active check
++      def check_custom_active_state(context)
++        @options[:active].respond_to?(:call) && @options[:active].call(context)
++      end
++
++      # Checks if the current page matches the item's URL
++      #
++      # @param context [Object] The context for URL matching
++      # @return [Boolean] Whether the current page matches
++      def check_current_page_match(context)
++        context.respond_to?(:helpers) && @url && context.helpers.current_page?(@url)
++      end
++
++      # Checks if any nested items are active
++      #
++      # @param context [Object] The context for checking nested items
++      # @return [Boolean] Whether any nested items are active
++      def check_nested_items_active(context)
++        @items.any? { |item| item.active?(context) }
+       end
+     end
+   end
+diff --git a/lib/phlexi/menu/theme.rb b/lib/phlexi/menu/theme.rb
+index 076b137..415498b 100644
+--- a/lib/phlexi/menu/theme.rb
++++ b/lib/phlexi/menu/theme.rb
+@@ -25,6 +25,8 @@ module Phlexi
+           hover: nil,                  # Hover state
+ 
+           # Badge elements
++          leading_badge_wrapper: nil,  # Wrapper for leading badge
++          trailing_badge_wrapper: nil, # Wrapper for trailing badge
+           leading_badge: nil,          # Badge before label
+           trailing_badge: nil,         # Badge after label
+ 

@@ -29,12 +29,27 @@ module Phlexi
       end
     end
 
+    class TestBadgeComponent < TestComponent
+      def initialize(content, **attributes)
+        @content = content
+        super(**attributes)
+      end
+
+      def view_template
+        div(**@attributes) { @content }
+      end
+    end
+
     class CustomThemeMenu < Phlexi::Menu::Component
       class Theme < Theme
         def self.theme
           super.merge({
             nav: "custom-nav",
-            item_label: "custom-label"
+            item_label: "custom-label",
+            leading_badge_wrapper: "custom-badge-wrapper",
+            trailing_badge_wrapper: "custom-badge-wrapper",
+            leading_badge: "custom-leading-badge",
+            trailing_badge: "custom-trailing-badge"
           })
         end
       end
@@ -50,6 +65,8 @@ module Phlexi
             item_link: ->(depth) { ["depth-link", depth.zero? ? "root" : "nested"] },
             item_label: ->(depth) { ["depth-label", "level-#{depth}"] },
             icon: ->(depth) { ["depth-icon", depth.zero? ? "primary" : "secondary"] },
+            leading_badge_wrapper: ->(depth) { ["badge-wrapper", "indent-#{depth}"] },
+            trailing_badge_wrapper: ->(depth) { ["badge-wrapper", "offset-#{depth}"] },
             leading_badge: ->(depth) { ["depth-leading-badge", "indent-#{depth}"] },
             trailing_badge: ->(depth) { ["depth-trailing-badge", "offset-#{depth}"] },
             active: ->(depth) { ["depth-active", "highlight-#{depth}"] }
@@ -140,19 +157,19 @@ module Phlexi
 
     def setup
       @menu = Phlexi::Menu::Builder.new do |m|
-        m.item "Home",
+        m.item("Home",
           url: "/",
           icon: TestIcon,
           leading_badge: "New",
-          trailing_badge: "2"
+          leading_badge_options: {class: "text-blue-500"},
+          trailing_badge: "2",
+          trailing_badge_options: {class: "text-sm"})
 
-        m.item "Products",
-          url: "/products" do |products|
-          products.item "All Products",
-            url: "/products",
-            leading_badge: TestComponent.new
-          products.item "Add Product",
-            url: "/products/new"
+        m.item "Products", url: "/products" do |products|
+          products.item("All Products", url: "/products")
+            .with_leading_badge(TestBadgeComponent.new("Featured"), class: "featured")
+
+          products.item "Add Product", url: "/products/new"
         end
 
         m.item "Settings",
@@ -161,6 +178,79 @@ module Phlexi
       end
     end
 
+    def test_depth_aware_badge_rendering
+      deep_menu = Phlexi::Menu::Builder.new do |m|
+        m.item("Root")
+          .with_leading_badge("L0", class: "l0")
+          .with_trailing_badge("T0", class: "t0") do |root|
+          root.item("Level 1")
+            .with_leading_badge("L1", class: "l1")
+            .with_trailing_badge("T1", class: "t1") do |l1|
+            l1.item("Level 2")
+              .with_leading_badge("L2", class: "l2")
+              .with_trailing_badge("T2", class: "t2")
+          end
+        end
+      end
+
+      render DepthAwareMenu.new(deep_menu)
+
+      # Root level (depth 0) assertions
+      root_item = ".depth-nav > .depth-items > .depth-item.depth-0"
+
+      # Basic structure assertions
+      assert has_css?(root_item)
+      assert_equal "depth-item depth-0", find(root_item)[:class]
+
+      # Badge wrappers and content
+      assert has_css?("#{root_item} .badge-wrapper.indent-0")
+      assert has_css?("#{root_item} .badge-wrapper.offset-0")
+      assert has_css?("#{root_item} .badge-wrapper.indent-0 span.l0", text: "L0")
+      assert has_css?("#{root_item} .badge-wrapper.offset-0 span.t0", text: "T0")
+
+      # Label assertions
+      assert has_css?("#{root_item} span.depth-label.level-0", text: "Root")
+
+      # Verify badge wrapper classes
+      wrappers = all("#{root_item} .badge-wrapper", minimum: 0)
+      assert_equal 2, wrappers.count
+      assert_equal ["badge-wrapper indent-0", "badge-wrapper offset-0"],
+        wrappers.map { |w| w[:class] }
+    end
+
+    def test_badge_options_mutation
+      item = @menu.items.first
+
+      # Initial options shouldn't be nil
+      refute_nil item.leading_badge_options
+      refute_nil item.trailing_badge_options
+
+      # Original options shouldn't be affected by changes
+      original_leading_options = item.leading_badge_options.dup
+      original_trailing_options = item.trailing_badge_options.dup
+
+      assert_raises FrozenError do
+        item.leading_badge_options[:new_key] = "value"
+      end
+      assert_raises FrozenError do
+        item.trailing_badge_options[:new_key] = "value"
+      end
+
+      assert_equal original_leading_options, item.leading_badge_options
+      assert_equal original_trailing_options, item.trailing_badge_options
+    end
+
+    def test_badge_nil_validation
+      assert_raises(ArgumentError) do
+        @menu.items.first.with_leading_badge(nil)
+      end
+
+      assert_raises(ArgumentError) do
+        @menu.items.first.with_trailing_badge(nil)
+      end
+    end
+
+    # Update existing tests to use the new badge system
     def test_menu_structure
       assert_equal 3, @menu.items.length
 
@@ -171,6 +261,8 @@ module Phlexi
       assert_equal TestIcon, home.icon
       assert_equal "New", home.leading_badge
       assert_equal "2", home.trailing_badge
+      assert_equal({class: "text-blue-500"}, home.leading_badge_options)
+      assert_equal({class: "text-sm"}, home.trailing_badge_options)
       assert_empty home.items
 
       # Test nested items
@@ -183,14 +275,12 @@ module Phlexi
       all_products = products.items[0]
       assert_equal "All Products", all_products.label
       assert_equal "/products", all_products.url
-      # Compare the class of the component instance instead of direct class comparison
-      assert_instance_of TestComponent, all_products.leading_badge
+      assert_instance_of TestBadgeComponent, all_products.leading_badge
+      assert_equal({class: "featured"}, all_products.leading_badge_options)
     end
 
     def test_menu_rendering
       render TestMenu.new(@menu)
-
-      # <nav class="test-nav"><ul class="test-items"><li class="test-item"><a href="/" class="test-link"><span class="test-leading-badge">New</span><div><div class="test-icon">Test Icon</div></div><span class="test-label">Home</span><span class="test-trailing-badge">2</span></a></li><li class="test-item test-parent"><a href="/products" class="test-link"><span class="test-label">Products</span></a><ul class="test-items"><li class="test-item"><a href="/products" class="test-link"><div>Test Component</div><span class="test-label">All Products</span></a></li><li class="test-item"><a href="/products/new" class="test-link"><span class="test-label">Add Product</span></a></li></ul></li><li class="test-item"><a href="/settings" class="test-link"><span class="test-label">Settings</span></a></li></ul></nav>
 
       # Test basic structure
       assert has_css?(".test-nav")
@@ -200,11 +290,13 @@ module Phlexi
       assert_equal 3, all(".test-nav > .test-items > .test-item", minimum: 0).count
 
       # Test Home item structure and content
-      assert has_css?(".test-nav > .test-items > .test-item:first-child .test-link[href='/']")
-      assert has_css?(".test-nav > .test-items > .test-item:first-child .test-leading-badge", text: "New")
-      assert has_css?(".test-nav > .test-items > .test-item:first-child .test-icon", text: "Test Icon")
-      assert has_css?(".test-nav > .test-items > .test-item:first-child .test-label", text: "Home")
-      assert has_css?(".test-nav > .test-items > .test-item:first-child .test-trailing-badge", text: "2")
+      home_item = ".test-nav > .test-items > .test-item:first-child"
+      assert has_css?("#{home_item} .test-link[href='/']")
+      # Fixed badge assertions to match actual structure
+      assert has_css?("#{home_item} div span.text-blue-500", text: "New")
+      assert has_css?("#{home_item} .test-icon-wrapper .test-icon", text: "Test Icon")
+      assert has_css?("#{home_item} .test-label", text: "Home")
+      assert has_css?("#{home_item} div span.text-sm", text: "2")
 
       # Test Products item and its nested structure
       products_item = ".test-nav > .test-items > .test-item:nth-child(2)"
@@ -218,8 +310,8 @@ module Phlexi
       # Test All Products item
       all_products = "#{products_item} > .test-items > .test-item:first-child"
       assert has_css?("#{all_products} .test-link[href='/products']")
-      # Changed to look for the actual rendered component output
-      assert has_css?("#{all_products} .test-link div", text: "Test Component")
+      # Fixed TestBadgeComponent assertion to match actual structure
+      assert has_css?("#{all_products} div div", text: "Featured")
       assert has_css?("#{all_products} .test-label", text: "All Products")
 
       # Test Add Product item
@@ -389,25 +481,25 @@ module Phlexi
           trailing_badge: TestComponent.new
       end
 
-      render TestMenu.new(menu)
-
       # <nav class="test-nav">
-      #   <ul class="test-items">
-      #     <li class="test-item">
-      #       <span class="test-span">
-      #         <div>Test Component</div>
-      #         <span class="test-label">Item</span>
-      #         <div>Test Component</div>
-      #       </span>
-      #     </li>
-      #   </ul>
+      #     <ul class="test-items">
+      #         <li class="test-item">
+      #             <span class="test-span">
+      #                 <div>
+      #                     <div>Test Component</div>
+      #                 </div>
+      #                 <span class="test-label">Item</span>
+      #                 <div>
+      #                     <div>Test Component</div>
+      #                 </div>
+      #             </span>
+      #         </li>
+      #     </ul>
       # </nav>
 
-      # Check the number of TestComponent instances
-      assert_equal 2, all("div", text: "Test Component", minimum: 0).count
-
-      # Check the label exists with correct text
-      assert has_css?(".test-label", text: "Item")
+      actual = TestMenu.new(menu).call
+      expected = '<nav class="test-nav"><ul class="test-items"><li class="test-item"><span class="test-span"><div><div>Test Component</div></div><span class="test-label">Item</span><div><div>Test Component</div></div></span></li></ul></nav>'
+      assert_equal actual, expected
     end
 
     def test_theme_customization
@@ -450,9 +542,11 @@ module Phlexi
       assert has_css?("#{root}.depth-item.depth-0")
       assert has_css?("#{root} a.depth-link.root")
       assert has_css?("#{root} span.depth-label.level-0", text: "Root")
-      assert has_css?("#{root} div.depth-icon.primary")
-      assert has_css?("#{root} span.depth-leading-badge.indent-0", text: "New")
-      assert has_css?("#{root} span.depth-trailing-badge.offset-0", text: "1")
+      assert has_css?("#{root} div.depth-icon.primary", text: "Test Icon")
+
+      # Badge assertions for root level
+      assert has_css?("#{root} .badge-wrapper.indent-0 span", text: "New")
+      assert has_css?("#{root} .badge-wrapper.offset-0 span", text: "1")
 
       # Test level 1 classes
       level1 = "#{root} > .depth-items > li:first-child"
@@ -465,9 +559,11 @@ module Phlexi
       assert has_css?("#{level2}.depth-item.depth-2")
       assert has_css?("#{level2} a.depth-link.nested")
       assert has_css?("#{level2} span.depth-label.level-2", text: "Level 2")
-      assert has_css?("#{level2} div.depth-icon.secondary")
-      assert has_css?("#{level2} span.depth-leading-badge.indent-2", text: "Beta")
-      assert has_css?("#{level2} span.depth-trailing-badge.offset-2", text: "2")
+      assert has_css?("#{level2} div.depth-icon.secondary", text: "Test Icon")
+
+      # Badge assertions for level 2
+      assert has_css?("#{level2} .badge-wrapper.indent-2 span", text: "Beta")
+      assert has_css?("#{level2} .badge-wrapper.offset-2 span", text: "2")
     end
 
     def test_depth_aware_active_state
@@ -529,6 +625,40 @@ module Phlexi
       # Test conditional lambda
       assert has_css?(".root-link")
       assert has_css?(".nested-link.indent-1")
+    end
+
+    def test_badge_initialization
+      # Test fluent API
+      item = @menu.items.first
+      assert_equal "New", item.leading_badge
+      assert_equal({class: "text-blue-500"}, item.leading_badge_options)
+      assert_equal "2", item.trailing_badge
+      assert_equal({class: "text-sm"}, item.trailing_badge_options)
+
+      # Test component badge
+      products_item = @menu.items[1].items.first
+      assert_instance_of TestBadgeComponent, products_item.leading_badge
+      assert_equal({class: "featured"}, products_item.leading_badge_options)
+    end
+
+    def test_badge_rendering
+      render TestMenu.new(@menu)
+
+      # Test text badges with their options
+      assert has_css?("span.text-blue-500", text: "New")
+      assert has_css?("span.text-sm", text: "2")
+
+      # Test component badge
+      assert has_css?("div", text: "Featured")
+
+      # Test parent structure for badges
+      first_item = ".test-nav > .test-items > .test-item:first-child"
+      assert has_css?("#{first_item} .test-link div span.text-blue-500")
+      assert has_css?("#{first_item} .test-link div span.text-sm")
+
+      products_item = ".test-nav > .test-items > .test-item:nth-child(2)"
+      all_products = "#{products_item} > .test-items > .test-item:first-child"
+      assert has_css?("#{all_products} .test-link div div", text: "Featured")
     end
   end
 end
