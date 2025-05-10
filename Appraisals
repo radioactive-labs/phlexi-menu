@@ -1,5 +1,5 @@
 appraise "default" do
-  # gem "phlex", "~> 1.10"
+  gem "phlex", "~> 2.0"
 end
 
 appraise "rails-7" do

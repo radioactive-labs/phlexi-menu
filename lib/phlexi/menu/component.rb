@@ -80,11 +80,11 @@ module Phlexi
       # @param depth [Integer] Current nesting depth
       # @return [String] Space-separated CSS classes
       def compute_item_wrapper_classes(item, depth)
-        tokens(
-          themed(:item_wrapper, depth),
-          item_parent_class(item, depth),
-          active?(item) ? themed(:active, depth) : nil
-        )
+        wrapper = themed(:item_wrapper, depth)
+        parent = item_parent_class(item, depth)
+        active = active?(item) ? themed(:active, depth) : nil
+
+        [wrapper, parent, active].compact.join(" ")
       end
 
       # Renders nested items if present and within depth limit
@@ -115,10 +115,11 @@ module Phlexi
       # @param depth [Integer] Current nesting depth
       # @return [void]
       def render_item_link(item, depth)
-        a(
-          href: item.url,
-          class: tokens(themed(:item_link, depth), active_class(item, depth))
-        ) do
+        link_class = themed(:item_link, depth)
+        active = active_class(item, depth)
+        classes = active ? "#{link_class} #{active}" : link_class
+
+        a(href: item.url, class: classes) do
           render_item_interior(item, depth)
         end
       end
@@ -251,26 +252,26 @@ module Phlexi
       #
       # @param component [Symbol] The theme component to resolve
       # @param depth [Integer] Current nesting depth
-      # @return [String, nil] The resolved CSS classes or nil
+      # @return [String] The resolved CSS classes
       def themed(component, depth = 0)
         theme = self.class::Theme.instance.resolve_theme(component)
-        return nil if theme.nil?
-        return theme unless theme.respond_to?(:call)
-        theme.call(depth)
+        theme.is_a?(Proc) ? theme.call(depth) : theme
       end
 
-      # Renders either a component or simple value with fallback.
+      # Helper method to render content with proper handling of different types
       #
-      # @param arg [Object] The value to render
-      # @yield The default rendering block
+      # @param arg [Object] The content to render
+      # @yield Block to render if arg is nil
       # @raise [ArgumentError] If no block is provided
       # @return [void]
       def phlexi_render(arg, &)
         return unless arg
         raise ArgumentError, "phlexi_render requires a default render block" unless block_given?
 
+        # Handle Phlex components or Rails Renderables
         if arg.class < Phlex::SGML || arg.respond_to?(:render_in)
           render arg
+        # Handle procs
         elsif arg.respond_to?(:to_proc)
           instance_exec(&arg)
         else
