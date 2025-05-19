@@ -20,6 +20,7 @@ module Phlexi
     #     end
     #   end
     class Component < COMPONENT_BASE
+      include Phlexi::Field::Common::Tokens
       # Theme class for customizing menu appearance
       class Theme < Phlexi::Menu::Theme; end
 
@@ -80,11 +81,11 @@ module Phlexi
       # @param depth [Integer] Current nesting depth
       # @return [String] Space-separated CSS classes
       def compute_item_wrapper_classes(item, depth)
-        wrapper = themed(:item_wrapper, depth)
-        parent = item_parent_class(item, depth)
-        active = active?(item) ? themed(:active, depth) : nil
-
-        [wrapper, parent, active].compact.join(" ")
+        tokens(
+          themed(:item_wrapper, depth),
+          item_parent_class(item, depth),
+          active?(item) ? themed(:active, depth) : nil
+        )
       end
 
       # Renders nested items if present and within depth limit
